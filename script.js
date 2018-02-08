@@ -2,52 +2,62 @@ const XLSX = require('xlsx');
 const fs = require('fs');
 
 //take in various reports
-const paymentData = XLSX.readFile('input-data.csv');
-const paymentJSON = XLSX.utils.sheet_to_json(paymentData["Sheets"]["Sheet1"]);
+const consumptionData = XLSX.readFile('self-serve-consumption-Jan2018.csv');
+const consumptionJSON = XLSX.utils.sheet_to_json(consumptionData["Sheets"]["Sheet1"]);
 
-const contactData = XLSX.readFile('contact-data.xlsx');
-const contactJSON = XLSX.utils.sheet_to_json(contactData["Sheets"]["Sheet1"]);
+const salesforceData = XLSX.readFile("Ad Studio Opportunities-2.8.18.xlsx");
+const salesforceJSON = XLSX.utils.sheet_to_json(salesforceData["Sheets"]["Sheet1"]);
 
-const campaignData = XLSX.readFile('campaign-data.csv');
-const campaignJSON = XLSX.utils.sheet_to_json(campaignData["Sheets"]["campaign-data"]);
+const tableauData = XLSX.readFile("tableau-data.csv");
+const tableauJSON = XLSX.utils.sheet_to_json(tableauData["Sheets"]["Sheet1"]);
 
-console.log(campaignJSON);
+
+
+const regex = new RegExp(/[^A-Za-z0-9]+/g);
+
+
+const normalizedSFName = salesforceJSON.map(campaign => {
+    campaign["Opportunity Name"] = campaign["Opportunity Name"].replace(regex, '').toLowerCase().trim();
+    return campaign;
+});
+
+console.log(normalizedSFName);
 
 
 //filter out non-invoiced campaigns
-const invoicedRows = paymentJSON.filter(data => {
-        if (data.payment_description === 'Invoice') {
+const invoicedRows = consumptionJSON.filter(data => {
+        if (data.invoiced === 'true') {
             return data;
         }
     })
+    // Get the ad name from the Tableau report. Looks up ad ID in Tableau and returns the Ad Studio name 
     .map(data => {
-
-        campaignJSON.forEach(campaign => {
-            console.log(campaign);
-            if (campaign["Ad\ Id"] === data.ad_id) {
-                data.ad_name = campaign["Ad\ Studio\ Name"] || "NO AD NAME FOUND";
-            }
-        })
-
-        // add in the contact and office
-        contactJSON.forEach(contact =>  {
-            if (contact.user_id === data.user_id) {
-                data.contact = contact.contact || "NO CONTACT FOUND";
-                data.company = contact.company_ln_office;
-            }
+        const match = tableauJSON.find(campaign => campaign["Ad Id"] === data.ad_id);
+        if (!match) {
+            data.ad_name = "Ad Name Not Found";
+            return data
         }
-    );
-        
-        //delete irrelevant properties?
+        data.ad_name = match["Ad Studio Name"];
+        return data;
+    })
+
+    //pull in the opp ID and acc
+    .map(data => {
+        const normalizedName = data.ad_name.replace(regex, '').toLowerCase().trim();
+        const match = normalizedSFName.find(campaign => campaign["Opportunity Name"] === normalizedName);
+        if (!match) {
+            data.opportunity_code = "Opp code not found";
+            data.account_code = "Acc code not found";
+            return data;
+        }
+        data.opportunity_code = match["Opportunity Code"];
+        data.account_code = match["Account code"];
         return data;
     });
 
-    //console.log(invoicedRows);
-
-    //add data to a new sheet in excel
-    paymentData.SheetNames.push("final_data");
-    paymentData.Sheets["final_data"] = XLSX.utils.json_to_sheet(invoicedRows);
+    console.log(invoicedRows);
 
 
-//export the final excel sheet
-//XLSX.writeFile(paymentData, 'final-data.xlsx');
+    const finalData = XLSX.utils.json_to_sheet(invoicedRows);
+    const stream = XLSX.stream.to_csv(finalData);
+    stream.pipe(fs.createWriteStream("output.csv"));
