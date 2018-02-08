@@ -1,3 +1,4 @@
 node_modules
-contact-data.xlsx
-input-data.csv
+*.csv
+*.xlsx
+*.xls
