@@ -21,7 +21,7 @@ const normalizedSFName = salesforceJSON.map(campaign => {
     return campaign;
 });
 
-console.log(normalizedSFName);
+//console.log(normalizedSFName);
 
 
 //filter out non-invoiced campaigns
@@ -34,30 +34,42 @@ const invoicedRows = consumptionJSON.filter(data => {
     .map(data => {
         const match = tableauJSON.find(campaign => campaign["Ad Id"] === data.ad_id);
         if (!match) {
-            data.ad_name = "Ad Name Not Found";
+            data.ad_name = data.sas_flight_name || "Ad Not Found";
+            data.impressions = data.impressions_consumed;
+            data.sas = true;
             return data
         }
         data.ad_name = match["Ad Studio Name"];
-        return data;
+        data.sas = false;
+        return {
+            ad_id: data.ad_id,
+            ad_name: data.ad_name,
+            business_name: data.business_name,
+            amount: data.amount,
+            currency: data.currency,
+            impressions: data.impressions_consumed,
+            invoiced: data.invoiced || false,
+            sas: data.sas
+        }
     })
 
     //pull in the opp ID and acc
-    .map(data => {
-        const normalizedName = data.ad_name.replace(regex, '').toLowerCase().trim();
-        const match = normalizedSFName.find(campaign => campaign["Opportunity Name"] === normalizedName);
-        if (!match) {
-            data.opportunity_code = "Opp code not found";
-            data.account_code = "Acc code not found";
-            return data;
-        }
-        data.opportunity_code = match["Opportunity Code"];
-        data.account_code = match["Account code"];
-        return data;
-    });
+    // .map(data => {
+    //     const normalizedName = data.ad_name.replace(regex, '').toLowerCase().trim();
+    //     const match = normalizedSFName.find(campaign => campaign["Opportunity Name"] === normalizedName);
+    //     if (!match) {
+    //         data.opportunity_code = "Opp code not found";
+    //         data.account_code = "Acc code not found";
+    //         return data;
+    //     }
+    //     data.opportunity_code = match["Opportunity Code"];
+    //     data.account_code = match["Account code"];
+    //     return data;
+    // });
 
     console.log(invoicedRows);
 
-
-    const finalData = XLSX.utils.json_to_sheet(invoicedRows);
-    const stream = XLSX.stream.to_csv(finalData);
-    stream.pipe(fs.createWriteStream("output.csv"));
+// output the excel file
+// const finalData = XLSX.utils.json_to_sheet(invoicedRows);
+// const stream = XLSX.stream.to_csv(finalData);
+// stream.pipe(fs.createWriteStream("output.csv"));
