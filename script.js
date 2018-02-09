@@ -1,5 +1,6 @@
 const XLSX = require('xlsx');
 const fs = require('fs');
+const _ = require('lodash');
 
 //take in various reports
 const consumptionData = XLSX.readFile('self-serve-consumption-Jan2018.csv');
@@ -30,27 +31,18 @@ const invoicedRows = consumptionJSON.filter(data => {
             return data;
         }
     })
+
     // Get the ad name from the Tableau report. Looks up ad ID in Tableau and returns the Ad Studio name 
     .map(data => {
         const match = tableauJSON.find(campaign => campaign["Ad Id"] === data.ad_id);
-        if (!match) {
+        if (match === undefined) {
             data.ad_name = data.sas_flight_name || "Ad Not Found";
-            data.impressions = data.impressions_consumed;
             data.sas = true;
-            return data
+        } else {
+            data.ad_name = match["Ad Studio Name"];
+            data.sas = false;
         }
-        data.ad_name = match["Ad Studio Name"];
-        data.sas = false;
-        return {
-            ad_id: data.ad_id,
-            ad_name: data.ad_name,
-            business_name: data.business_name,
-            amount: data.amount,
-            currency: data.currency,
-            impressions: data.impressions_consumed,
-            invoiced: data.invoiced || false,
-            sas: data.sas
-        }
+        return _.pick(data, ['ad_id', 'ad_name', 'business_name', 'amount', 'currency', 'impressions_consumed', 'invoiced', 'sas'])
     })
 
     //pull in the opp ID and acc
@@ -70,6 +62,6 @@ const invoicedRows = consumptionJSON.filter(data => {
     console.log(invoicedRows);
 
 // output the excel file
-// const finalData = XLSX.utils.json_to_sheet(invoicedRows);
-// const stream = XLSX.stream.to_csv(finalData);
-// stream.pipe(fs.createWriteStream("output.csv"));
+const finalData = XLSX.utils.json_to_sheet(invoicedRows);
+const stream = XLSX.stream.to_csv(finalData);
+stream.pipe(fs.createWriteStream("output.csv"));
